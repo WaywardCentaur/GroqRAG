@@ -68,3 +68,17 @@ This section has moved here: [https://facebook.github.io/create-react-app/docs/d
 ### `npm run build` fails to minify
 
 This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+
+## Deployment
+
+This project is automatically deployed to GitHub Pages via the main branch. The production version is available at:
+
+**🌐 Live Demo:** [https://waywardcentaur.github.io/GroqRAG/anna-webinar-demo/](https://waywardcentaur.github.io/GroqRAG/anna-webinar-demo/)
+
+The deployment is handled by a GitHub Actions workflow that:
+- Triggers on every push to the main branch (when changes are made to the `anna-webinar-demo/` directory)
+- Builds the React application using `npm run build`
+- Deploys the built files to the `gh-pages` branch
+- Makes the application available via GitHub Pages
+
+No manual deployment steps are required - simply push changes to the main branch and the deployment will happen automatically.
