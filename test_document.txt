@@ -1,0 +1,11 @@
+This is a test document for the Audio RAG Agent.
+
+It contains sample text content that will be processed and stored in the ChromaDB vector database.
+
+The document demonstrates:
+- Text processing capabilities
+- Document chunking
+- Vector embedding storage
+- Retrieval functionality
+
+This content can be queried alongside audio transcriptions to provide comprehensive answers.
