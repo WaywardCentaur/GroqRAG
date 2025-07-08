@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'anna-webinar-demo/**'
+      - '.github/workflows/deploy-anna-webinar-demo.yml'
   workflow_dispatch:
 
 jobs:
@@ -23,32 +24,13 @@ jobs:
           cache: 'npm'
           cache-dependency-path: anna-webinar-demo/package.json
 
-      - name: Check package.json exists
-        run: |
-          ls -la anna-webinar-demo/
-          cat anna-webinar-demo/package.json
-
       - name: Install dependencies
         working-directory: anna-webinar-demo
-        run: |
-          echo "Installing dependencies..."
-          npm ci --verbose
+        run: npm ci
 
       - name: Build React app
         working-directory: anna-webinar-demo
-        run: |
-          echo "Building React app..."
-          npm run build
-        env:
-          CI: false
-          GENERATE_SOURCEMAP: false
-
-      - name: Verify build output
-        run: |
-          echo "Checking build directory..."
-          ls -la anna-webinar-demo/build/
-          echo "Build directory contents:"
-          find anna-webinar-demo/build -type f | head -10
+        run: npm run build
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
