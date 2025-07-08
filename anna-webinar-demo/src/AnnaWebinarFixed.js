@@ -447,7 +447,8 @@ const AnnaWebinarFixed = () => {
     // Set up regular audio stream event handlers (for fallback mode)
     audioStreamService.onConnectionChanged((connected) => {
       if (syncMode === 'single') {
-        setAudioStreamConnected(connected);
+        console.log('🔊 Audio stream connection changed:', connected);
+        // Note: Using console.log instead of state since we're in dual-tab mode primarily
       }
     });
 
