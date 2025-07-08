@@ -280,7 +280,7 @@ For issues and questions:
 1. Check the troubleshooting section
 2. Review browser console logs
 3. Check backend logs
-4. Create an issue with detailed information
+4. Create an issue with detailed information..
 
 ---
 
