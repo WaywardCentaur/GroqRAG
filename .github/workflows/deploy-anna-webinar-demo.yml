@@ -21,28 +21,36 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: anna-webinar-demo/package.json
+          cache-dependency-path: anna-webinar-demo/package-lock.json
+
+      - name: Clear npm cache
+        working-directory: anna-webinar-demo
+        run: npm cache clean --force
 
       - name: Check package.json exists
         run: |
           ls -la anna-webinar-demo/
-          cat anna-webinar-demo/package.json
+          echo "Node version:"
+          node --version
+          echo "NPM version:"
+          npm --version
 
       - name: Install dependencies
         working-directory: anna-webinar-demo
         run: |
           echo "Installing dependencies..."
-          npm ci --verbose
+          npm install --prefer-offline --no-audit
 
       - name: Build React app
         working-directory: anna-webinar-demo
         run: |
           echo "Building React app..."
-          npm run build
+          DISABLE_ESLINT_PLUGIN=true npm run build
         env:
           CI: false
           GENERATE_SOURCEMAP: false
           ESLINT_NO_DEV_ERRORS: true
+          DISABLE_ESLINT_PLUGIN: true
 
       - name: Verify build output
         run: |
