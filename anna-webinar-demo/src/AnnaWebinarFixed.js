@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
 import styled from "styled-components";
-import apiService from './apiService';
 import audioStreamService from './audioStreamService';
 import youtubeSyncService from './youtubeSyncService';
 
@@ -62,14 +61,6 @@ const VideoPlayer = styled.div`
     max-width: 100vw;
     min-height: 180px;
   }
-`;
-
-const VideoElement = styled.video`
-  width: 100%;
-  height: 100%;
-  border-radius: 16px;
-  object-fit: cover;
-  display: ${({ show }) => show ? 'block' : 'none'};
 `;
 
 const YouTubeFrame = styled.iframe`
@@ -369,14 +360,12 @@ const AnnaWebinarFixed = () => {
   
   // Audio streaming states
   const [isStreamingAudio, setIsStreamingAudio] = useState(false);
-  const [audioStreamConnected, setAudioStreamConnected] = useState(false);
   const [showTranscriptions, setShowTranscriptions] = useState(false);
   const [liveTranscriptions, setLiveTranscriptions] = useState([]);
   const [playerTabReady, setPlayerTabReady] = useState(false);
   const syncMode = 'dual-tab'; // Always use dual-tab mode
   
   const inputRef = useRef(null);
-  const videoRef = useRef(null);
   const chatBodyRef = useRef(null);
 
   // YouTube webinar video ID (Anna Livingston Marketing webinar)
@@ -420,7 +409,6 @@ const AnnaWebinarFixed = () => {
           console.log('✅ Player tab is ready for audio capture');
           break;
         case 'audio_ready':
-          setAudioStreamConnected(true);
           console.log('🔊 Audio capture ready in player tab');
           break;
         case 'transcription':
@@ -449,6 +437,9 @@ const AnnaWebinarFixed = () => {
           // This prevents unwanted toggling of the transcription state
           // User controls this explicitly via the toggle button
           
+          break;
+        default:
+          console.log('Unknown message type:', message.type);
           break;
       }
     });
@@ -487,7 +478,7 @@ const AnnaWebinarFixed = () => {
       audioStreamService.disconnect();
       youtubeSyncService.disconnect();
     };
-  }, [WEBINAR_VIDEO_ID, syncMode]);
+  }, [WEBINAR_VIDEO_ID, syncMode, showTranscriptions]);
 
   const sendMessage = async (e) => {
     e.preventDefault();
@@ -566,24 +557,24 @@ const AnnaWebinarFixed = () => {
   };
 
   // Function to open the debug player tab
-  const openDebugPlayerTab = () => {
-    // Use window.open directly to ensure we get the debug version
-    const playerUrl = `${window.location.origin}/debug-player.html?videoId=${WEBINAR_VIDEO_ID}`;
-    
-    const debugWindow = window.open(
-      playerUrl,
-      'youtube-debug-player',
-      'width=800,height=800,menubar=no,toolbar=no,location=no,status=no'
-    );
-    
-    if (debugWindow) {
-      console.log('🎬 DEBUG Player tab opened:', playerUrl);
-      return true;
-    } else {
-      console.error('❌ Failed to open DEBUG player tab - popup blocked?');
-      return false;
-    }
-  };
+  // const openDebugPlayerTab = () => {
+  //   // Use window.open directly to ensure we get the debug version
+  //   const playerUrl = `${window.location.origin}/debug-player.html?videoId=${WEBINAR_VIDEO_ID}`;
+  //   
+  //   const debugWindow = window.open(
+  //     playerUrl,
+  //     'youtube-debug-player',
+  //     'width=800,height=800,menubar=no,toolbar=no,location=no,status=no'
+  //   );
+  //   
+  //   if (debugWindow) {
+  //     console.log('🎬 DEBUG Player tab opened:', playerUrl);
+  //     return true;
+  //   } else {
+  //     console.error('❌ Failed to open DEBUG player tab - popup blocked?');
+  //     return false;
+  //   }
+  // };
 
   const startVideo = () => {
     setPlaying(true);
@@ -629,13 +620,13 @@ const AnnaWebinarFixed = () => {
     }
   };
 
-  const toggleAudioStream = () => {
-    if (isStreamingAudio) {
-      stopAudioStream();
-    } else {
-      startAudioStream();
-    }
-  };
+  // const toggleAudioStream = () => {
+  //   if (isStreamingAudio) {
+  //     stopAudioStream();
+  //   } else {
+  //     startAudioStream();
+  //   }
+  // };
 
   return (
     <Page>

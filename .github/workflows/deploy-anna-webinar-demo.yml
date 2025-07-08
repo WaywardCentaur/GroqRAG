@@ -42,6 +42,7 @@ jobs:
         env:
           CI: false
           GENERATE_SOURCEMAP: false
+          ESLINT_NO_DEV_ERRORS: true
 
       - name: Verify build output
         run: |
