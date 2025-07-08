@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  anna-webinar-demo:
+    build: .
+    ports:
+      - "3000:80"
+    environment:
+      - REACT_APP_API_URL=http://45.32.212.233:8000
+      - REACT_APP_WS_URL=ws://45.32.212.233:8000
+      - REACT_APP_ENV=production
+    restart: unless-stopped
+    container_name: anna-webinar-demo
+    
+  # Optional: Add a reverse proxy if needed
+  nginx-proxy:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./proxy.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - anna-webinar-demo
+    restart: unless-stopped
+    container_name: anna-webinar-proxy
+    profiles:
+      - with-proxy

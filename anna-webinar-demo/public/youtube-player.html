@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Player - Audio Capture</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+        
+        .player-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin-bottom: 20px;
+        }
+        
+        iframe {
+            width: 100%;
+            height: 450px;
+            border: none;
+            border-radius: 8px;
+        }
+        
+        .controls {
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .status {
+            background: rgba(34, 197, 94, 0.2);
+            border: 1px solid #22c55e;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+        
+        .audio-controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            align-items: center;
+            margin-top: 15px;
+        }
+        
+        button {
+            background: #6a5cff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        
+        button:hover {
+            background: #5240ff;
+        }
+        
+        button.active {
+            background: #ef4444;
+        }
+        
+        .transcription-area {
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 8px;
+            width: 100%;
+            max-width: 800px;
+            min-height: 150px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .transcription-item {
+            margin-bottom: 10px;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .warning {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid #ef4444;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="warning">
+        <strong>🎬 YouTube Audio Capture Tab</strong><br>
+        This tab plays the video and captures audio. Use the main tab for AI chat and transcription viewing.
+    </div>
+
+    <div class="status" id="status">
+        📡 Connecting to main tab...
+    </div>
+
+    <div class="controls">
+        <h3>� Audio Recording Controls</h3>
+        <p style="margin: 8px 0; color: #ccc; font-size: 0.9rem;">
+            Click the button below to start capturing audio from the video.<br>
+            Return to the main tab to view transcriptions and use AI chat.
+        </p>
+        <div class="audio-controls">
+            <button id="audioBtn" onclick="toggleAudioCapture()">🎤 Start Audio Capture</button>
+            <span id="audioStatus">Audio: Ready</span>
+        </div>
+    </div>
+
+    <div class="player-container">
+        <iframe id="youtube-player" 
+                src="" 
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowfullscreen>
+        </iframe>
+    </div>
+
+    <div class="transcription-area">
+        <h4>📝 Live Transcriptions</h4>
+        <div id="transcriptions"></div>
+    </div>
+
+    <script type="module">
+        import youtubeSyncService from './youtubeSyncService.js';
+        import audioStreamService from './audioStreamService.js';
+
+        let isCapturing = false;
+        let transcriptions = [];
+
+        // Get video ID from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const videoId = urlParams.get('videoId') || 'GeUXQ_L-35M';
+
+        // Configure YouTube with parameters that support audio capture
+        // Using enhanced parameters for better iframe API compatibility
+        const youtubeParams = [
+            'enablejsapi=1',           // Enable YouTube API
+            'autoplay=1',              // Auto play the video
+            'controls=1',              // Show video controls
+            'iv_load_policy=3',        // Don't show annotations
+            'modestbranding=1',        // Less YouTube branding
+            'rel=0',                   // No related videos
+            'fs=1',                    // Allow fullscreen
+            'origin=' + encodeURIComponent(window.location.origin),
+            'widget_referrer=' + encodeURIComponent(window.location.origin)
+        ].join('&');
+        
+        document.getElementById('youtube-player').src = 
+            `https://www.youtube.com/embed/${videoId}?${youtubeParams}`;
+
+        // Initialize sync service as player
+        youtubeSyncService.initPlayer();
+
+        // Set up sync message handler
+        youtubeSyncService.onSyncMessageReceived((message) => {
+            console.log('Player tab received sync message:', message);
+        });
+
+        // Update status
+        document.getElementById('status').innerHTML = 
+            '✅ Connected to main tab - Ready to capture audio';
+
+        // Audio capture functions
+        window.toggleAudioCapture = async function() {
+            const btn = document.getElementById('audioBtn');
+            const status = document.getElementById('audioStatus');
+            
+            if (!isCapturing) {
+                try {
+                    // Connect to backend
+                    status.textContent = 'Connecting...';
+                    await audioStreamService.connect();
+                    status.textContent = 'Connected! Starting capture...';
+                    
+                    // Add a warning notice to the page
+                    const warningDiv = document.createElement('div');
+                    warningDiv.className = 'warning';
+                    warningDiv.id = 'captureInstructions';
+                    warningDiv.innerHTML = `
+                        <strong>⚠️ IMPORTANT AUDIO CAPTURE INSTRUCTIONS:</strong><br>
+                        1. Select <strong>'This Tab'</strong> in the dialog<br>
+                        2. <strong>MAKE SURE to check 'Share tab audio'</strong><br>
+                        3. Click <strong>'Share'</strong> to begin
+                    `;
+                    document.body.insertBefore(warningDiv, document.body.firstChild);
+                    
+                    // Show instructions before starting capture
+                    alert("IMPORTANT AUDIO CAPTURE INSTRUCTIONS:\n\n1. Select 'This Tab' in the dialog\n2. MAKE SURE to check 'Share tab audio'\n3. Click 'Share' to begin");
+                    
+                    // Start tab audio recording
+                    const success = await audioStreamService.startTabAudioRecording();
+                    
+                    if (success) {
+                        isCapturing = true;
+                        btn.textContent = '🛑 Stop Audio Capture';
+                        btn.classList.add('active');
+                        status.textContent = 'Audio: Capturing';
+                        
+                        // Set up transcription handler with detailed logging
+                        audioStreamService.onTranscriptionReceived((data) => {
+                            console.log('📝 Transcription received in player tab:', data);
+                            addTranscription(data.text);
+                            
+                            // Always normalize the 'show' parameter to a string to prevent type issues
+                            // This is critical to prevent React state update problems
+                            const showValueRaw = data.show === undefined ? 'true' : data.show;
+                            const showValueString = String(showValueRaw);
+                            
+                            console.log('Show parameter normalized in player tab:', {
+                                originalValue: data.show,
+                                originalType: typeof data.show,
+                                normalizedValue: showValueString,
+                                normalizedType: typeof showValueString
+                            });
+                            
+                            // Send to main tab with consistent types
+                            youtubeSyncService.sendToController({
+                                type: 'audio_transcription',
+                                text: data.text,
+                                timestamp: data.timestamp || Date.now(),
+                                // Always pass as string
+                                show: showValueString,
+                                confidence: data.confidence,
+                                processing_time: data.processing_time,
+                                // Include raw data for debugging
+                                raw: JSON.stringify(data)
+                            });
+                        });
+
+                        // Notify main tab
+                        youtubeSyncService.sendToController({
+                            type: 'audio_permission_granted'
+                        });
+                    }
+                } catch (error) {
+                    console.error('Failed to start audio capture:', error);
+                    
+                    // Remove the warning if it exists
+                    const instructionsElem = document.getElementById('captureInstructions');
+                    if (instructionsElem) instructionsElem.remove();
+                    
+                    // Create more detailed error message based on the error type
+                    let errorMessage = '';
+                    
+                    if (error.toString().includes('audio track')) {
+                        errorMessage = 'ERROR: No audio track detected! Did you check "Share tab audio" in the dialog?';
+                    } else if (error.name === 'NotAllowedError') {
+                        errorMessage = 'ERROR: Permission denied. You must allow screen sharing.';
+                    } else if (error.name === 'NotFoundError') {
+                        errorMessage = 'ERROR: No compatible audio device found.';
+                    } else {
+                        errorMessage = 'Failed to start audio capture: ' + error.message;
+                    }
+                    
+                    // Add detailed troubleshooting instructions
+                    errorMessage += '\n\n💡 TROUBLESHOOTING:\n';
+                    errorMessage += '1. Make sure to select "This Tab" in the dialog\n';
+                    errorMessage += '2. MUST check "Share tab audio" checkbox\n';
+                    errorMessage += '3. Try refreshing this tab and starting over\n';
+                    errorMessage += '4. Try using Chrome instead of other browsers';
+                    
+                    alert(errorMessage);
+                    
+                    // Update status to show error with more details
+                    status.textContent = 'Audio: Error - ' + (error.name || 'Failed');
+                    status.style.color = '#ef4444';
+                    
+                    // Add error info to the page
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'warning';
+                    errorDiv.innerHTML = `
+                        <strong>❌ Audio Capture Failed</strong><br>
+                        ${error.message || error.toString()}<br>
+                        <em>Please try again and make sure to check "Share tab audio"</em>
+                    `;
+                    document.querySelector('.controls').appendChild(errorDiv);
+                }
+            } else {
+                // Stop audio capture
+                await audioStreamService.stopTabAudioRecording();
+                isCapturing = false;
+                btn.textContent = '🎤 Start Audio Capture';
+                btn.classList.remove('active');
+                status.textContent = 'Audio: Stopped';
+            }
+        };
+
+        function addTranscription(text) {
+            transcriptions.push({
+                text: text,
+                timestamp: new Date().toLocaleTimeString()
+            });
+            
+            // Keep only last 10 transcriptions
+            if (transcriptions.length > 10) {
+                transcriptions = transcriptions.slice(-10);
+            }
+            
+            // Update display
+            const container = document.getElementById('transcriptions');
+            container.innerHTML = transcriptions.map(t => 
+                `<div class="transcription-item">
+                    <strong>${t.timestamp}:</strong> ${t.text}
+                </div>`
+            ).join('');
+            
+            // Scroll to bottom
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // Handle page unload
+        window.addEventListener('beforeunload', () => {
+            if (isCapturing) {
+                audioStreamService.stopTabAudioRecording();
+            }
+            youtubeSyncService.disconnect();
+        });
+
+        console.log('🎬 YouTube player tab initialized');
+    </script>
+</body>
+</html>
