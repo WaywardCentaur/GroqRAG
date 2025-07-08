@@ -14,6 +14,7 @@ permissions:
   pages: write
   id-token: write
   actions: read
+  deployments: write
 
 jobs:
   build-and-deploy:
@@ -29,7 +30,7 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Ensure full history for proper deployment
+          fetch-depth: 1  # Minimal fetch for better reliability
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -40,8 +41,16 @@ jobs:
 
       - name: Verify directory structure and prerequisites
         run: |
-          echo "=== Directory Structure Verification ==="
+          echo "=== Git and Repository Verification ==="
           echo "Current working directory: $(pwd)"
+          echo "Git workspace: ${{ github.workspace }}"
+          echo "Repository: ${{ github.repository }}"
+          echo "Git status:"
+          git status --porcelain || echo "Git status failed"
+          echo "Git remote:"
+          git remote -v || echo "No git remotes found"
+          
+          echo -e "\n=== Directory Structure Verification ==="
           echo "Repository structure:"
           ls -la
           
@@ -116,18 +125,29 @@ jobs:
           
           echo -e "\n=== Build Output Ready for Deployment ==="
 
+      - name: Configure Git for deployment
+        run: |
+          echo "=== Git Configuration ==="
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git config --global init.defaultBranch main
+          echo "✅ Git configured successfully"
+
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./anna-webinar-demo/build
           destination_dir: anna-webinar-demo
-          # Ensure clean deployment
-          force_orphan: true
-          # Add commit info
+          # Configure git settings
           user_name: 'github-actions[bot]'
           user_email: 'github-actions[bot]@users.noreply.github.com'
-          commit_message: 'Deploy Anna Webinar Demo ${{ github.sha }}'
+          # Use a simple commit message
+          commit_message: 'Deploy Anna Webinar Demo'
+          # Enable debug mode
+          enable_jekyll: false
+          # Don't use force orphan to avoid git issues
+          force_orphan: false
 
       - name: Deployment verification
         run: |

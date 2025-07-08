@@ -31,6 +31,31 @@
 
 ## Troubleshooting:
 
+### If workflow fails with "git failed with exit code 128":
+1. **Check Repository Settings:**
+   - Go to Settings → Actions → General
+   - Under "Workflow permissions", select "Read and write permissions"
+   - Check "Allow GitHub Actions to create and approve pull requests"
+
+2. **Verify GitHub Pages Configuration:**
+   - Go to Settings → Pages
+   - Source should be "GitHub Actions" (not "Deploy from a branch")
+   - Save the settings
+
+3. **Check Branch Protection:**
+   - Ensure the `gh-pages` branch (if it exists) doesn't have protection rules blocking the action
+   - Go to Settings → Branches and check protection rules
+
+4. **Verify Checkout Step:**
+   - The workflow now uses `fetch-depth: 1` for better reliability
+   - Git configuration is set up automatically before deployment
+   - Repository verification step checks git status
+
+### If checkout step fails:
+1. Check if the repository is accessible
+2. Verify you haven't overridden repository, ref, or token settings
+3. Ensure the workflow is running on the correct branch (main)
+
 ### If workflow fails:
 1. Check the Actions tab for detailed error logs
 2. Verify repository settings (Pages enabled, permissions set)
