@@ -43,6 +43,13 @@ jobs:
           CI: false
           GENERATE_SOURCEMAP: false
 
+      - name: Verify build output
+        run: |
+          echo "Checking build directory..."
+          ls -la anna-webinar-demo/build/
+          echo "Build directory contents:"
+          find anna-webinar-demo/build -type f | head -10
+
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
