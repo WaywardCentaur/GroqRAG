@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Audio RAG Agent - Improved Interface</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .header {
+            text-align: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+        }
+        .section {
+            background: white;
+            border: none;
+            padding: 25px;
+            margin-bottom: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .video-container {
+            position: relative;
+            width: 100%;
+            padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+            margin-bottom: 20px;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .video-container #player {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        .response {
+            background: #f8f9fa;
+            padding: 15px;
+            margin-top: 15px;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            border-left: 4px solid #007bff;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+        .error {
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+            color: #721c24;
+        }
+        .success {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            color: #155724;
+        }
+        .warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            color: #856404;
+        }
+        button {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            margin: 5px;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        button:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        .stop-button {
+            background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
+        }
+        input, textarea, select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            margin: 8px 0;
+            box-sizing: border-box;
+        }
+        textarea {
+            height: 100px;
+            resize: vertical;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 6px;
+            margin: 10px 0;
+            font-weight: 500;
+        }
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.connecting {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .status.disconnected {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .audio-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            margin: 15px 0;
+        }
+        .audio-status {
+            flex: 1;
+            min-width: 200px;
+        }
+        .connection-info {
+            background: #e3f2fd;
+            border: 1px solid #90caf9;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .transcription-box {
+            background: #f1f8ff;
+            border: 1px solid #c8e1ff;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 15px 0;
+            min-height: 100px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .metric {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .metric-label {
+            font-size: 14px;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #007bff, #0056b3);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎤 Audio RAG Agent</h1>
+        <p>Real-time audio processing with intelligent document retrieval</p>
+    </div>
+
+    <!-- System Status -->
+    <div class="section">
+        <h2>🔧 System Status</h2>
+        <button onclick="checkHealth()">Check System Health</button>
+        <div id="healthResponse" class="response"></div>
+    </div>
+
+    <!-- Document Upload -->
+    <div class="section">
+        <h2>📄 Document Upload</h2>
+        <input type="file" id="documentFile" accept=".txt,.pdf,.doc,.docx" multiple>
+        <button onclick="uploadDocument()">Upload Documents</button>
+        <div id="uploadResponse" class="response"></div>
+    </div>
+
+    <!-- YouTube Video Integration -->
+    <div class="section">
+        <h2>🎥 YouTube Video Processing</h2>
+        <input type="text" id="youtubeUrl" placeholder="Enter YouTube URL..." value="https://www.youtube.com/watch?v=dQw4w9WgXcQ">
+        <button onclick="loadVideo()">Load Video</button>
+        <div class="video-container">
+            <div id="player"></div>
+        </div>
+    </div>
+
+    <!-- Real-time Audio Processing -->
+    <div class="section">
+        <h2>🎙️ Real-time Audio Processing</h2>
+        <div class="connection-info">
+            <strong>Connection Status:</strong>
+            <div id="connectionStatus" class="status disconnected">Disconnected</div>
+            <div class="metrics">
+                <div class="metric">
+                    <div id="connectionAttempts" class="metric-value">0</div>
+                    <div class="metric-label">Connection Attempts</div>
+                </div>
+                <div class="metric">
+                    <div id="messagesSent" class="metric-value">0</div>
+                    <div class="metric-label">Messages Sent</div>
+                </div>
+                <div class="metric">
+                    <div id="messagesReceived" class="metric-value">0</div>
+                    <div class="metric-label">Messages Received</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="audio-controls">
+            <button id="audioButton" onclick="toggleAudioProcessing()">Start Tab Audio Processing</button>
+            <div class="audio-status">
+                <div id="audioStatus">Ready to start</div>
+                <div class="progress-bar">
+                    <div id="audioProgress" class="progress-fill"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="transcription-box">
+            <h4>Live Transcription:</h4>
+            <div id="transcriptionText">Transcription will appear here...</div>
+        </div>
+        
+        <div id="audioResponse" class="response"></div>
+    </div>
+
+    <!-- Query Interface -->
+    <div class="section">
+        <h2>💬 Query Interface</h2>
+        <textarea id="queryText" placeholder="Enter your question about the uploaded documents or transcribed audio..."></textarea>
+        <button onclick="sendQuery()">Send Query</button>
+        <div id="queryResponse" class="response"></div>
+    </div>
+
+    <!-- Chat History -->
+    <div class="section">
+        <h2>📋 Chat History</h2>
+        <button onclick="getChatHistory()">Get Chat History</button>
+        <button onclick="clearChatHistory()">Clear History</button>
+        <div id="historyResponse" class="response"></div>
+    </div>
+
+    <!-- Load YouTube API -->
+    <script src="https://www.youtube.com/iframe_api"></script>
+
+    <script>
+        // Global variables
+        let player;
+        let ws = null;
+        let isRecording = false;
+        let audioContext = null;
+        let mediaStream = null;
+        let processor = null;
+        let connectionAttempts = 0;
+        let messagesSent = 0;
+        let messagesReceived = 0;
+        let reconnectTimer = null;
+        let heartbeatTimer = null;
+        
+        // WebSocket connection management
+        const WS_CONFIG = {
+            maxReconnectAttempts: 10,
+            reconnectDelay: 2000,
+            heartbeatInterval: 30000,
+            connectionTimeout: 15000
+        };
+
+        // Initialize YouTube player
+        function onYouTubeIframeAPIReady() {
+            console.log('YouTube API ready');
+        }
+
+        function loadVideo() {
+            const url = document.getElementById('youtubeUrl').value;
+            const videoId = extractVideoId(url);
+            
+            if (!videoId) {
+                alert('Please enter a valid YouTube URL');
+                return;
+            }
+
+            if (player) {
+                player.destroy();
+            }
+
+            player = new YT.Player('player', {
+                height: '100%',
+                width: '100%',
+                videoId: videoId,
+                playerVars: {
+                    autoplay: 0,
+                    controls: 1,
+                    modestbranding: 1,
+                    rel: 0
+                },
+                events: {
+                    onReady: (event) => {
+                        console.log('YouTube player ready');
+                        document.getElementById('audioResponse').textContent = 'Video loaded successfully!';
+                        document.getElementById('audioResponse').className = 'response success';
+                    },
+                    onError: (event) => {
+                        console.error('YouTube player error:', event.data);
+                        document.getElementById('audioResponse').textContent = 'Error loading video: ' + event.data;
+                        document.getElementById('audioResponse').className = 'response error';
+                    }
+                }
+            });
+        }
+
+        function extractVideoId(url) {
+            const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
+            const match = url.match(regex);
+            return match ? match[1] : null;
+        }
+
+        // WebSocket connection with improved error handling and reconnection
+        function connectWebSocket() {
+            return new Promise((resolve, reject) => {
+                if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
+                    resolve(ws);
+                    return;
+                }
+
+                connectionAttempts++;
+                updateMetrics();
+                updateConnectionStatus('connecting', `Connecting... (Attempt ${connectionAttempts})`);
+
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = `${protocol}//${window.location.host}/audio`;
+                
+                console.log(`Attempting WebSocket connection to: ${wsUrl}`);
+                ws = new WebSocket(wsUrl);
+
+                const connectionTimeout = setTimeout(() => {
+                    if (ws.readyState !== WebSocket.OPEN) {
+                        console.error('WebSocket connection timeout');
+                        ws.close();
+                        reject(new Error('WebSocket connection timeout'));
+                    }
+                }, WS_CONFIG.connectionTimeout);
+
+                ws.onopen = () => {
+                    clearTimeout(connectionTimeout);
+                    console.log('WebSocket connected successfully');
+                    updateConnectionStatus('connected', 'Connected');
+                    connectionAttempts = 0; // Reset counter on successful connection
+                    updateMetrics();
+                    startHeartbeat();
+                    resolve(ws);
+                };
+
+                ws.onmessage = (event) => {
+                    messagesReceived++;
+                    updateMetrics();
+                    
+                    try {
+                        const data = JSON.parse(event.data);
+                        console.log('Received WebSocket message:', data);
+                        
+                        if (data.type === 'pong') {
+                            console.log('Received heartbeat pong');
+                            return;
+                        }
+                        
+                        if (data.type === 'transcription' && data.text) {
+                            updateTranscription(data.text);
+                        } else if (data.type === 'error') {
+                            console.error('WebSocket error message:', data.message);
+                            document.getElementById('audioResponse').textContent = `Error: ${data.message}`;
+                            document.getElementById('audioResponse').className = 'response error';
+                        } else {
+                            document.getElementById('audioResponse').textContent = JSON.stringify(data, null, 2);
+                            document.getElementById('audioResponse').className = 'response';
+                        }
+                    } catch (error) {
+                        console.error('Error parsing WebSocket message:', error);
+                        document.getElementById('audioResponse').textContent = `Error parsing message: ${error.message}`;
+                        document.getElementById('audioResponse').className = 'response error';
+                    }
+                };
+
+                ws.onerror = (error) => {
+                    clearTimeout(connectionTimeout);
+                    console.error('WebSocket error:', error);
+                    updateConnectionStatus('disconnected', 'Connection error');
+                    reject(error);
+                };
+
+                ws.onclose = (event) => {
+                    clearTimeout(connectionTimeout);
+                    stopHeartbeat();
+                    console.log('WebSocket connection closed:', event.code, event.reason);
+                    updateConnectionStatus('disconnected', `Disconnected (${event.code})`);
+                    
+                    if (isRecording && connectionAttempts < WS_CONFIG.maxReconnectAttempts) {
+                        console.log(`Attempting to reconnect in ${WS_CONFIG.reconnectDelay}ms...`);
+                        reconnectTimer = setTimeout(() => {
+                            connectWebSocket().catch(console.error);
+                        }, WS_CONFIG.reconnectDelay);
+                    }
+                };
+            });
+        }
+
+        function startHeartbeat() {
+            stopHeartbeat();
+            heartbeatTimer = setInterval(() => {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'ping' }));
+                    messagesSent++;
+                    updateMetrics();
+                }
+            }, WS_CONFIG.heartbeatInterval);
+        }
+
+        function stopHeartbeat() {
+            if (heartbeatTimer) {
+                clearInterval(heartbeatTimer);
+                heartbeatTimer = null;
+            }
+        }
+
+        function updateConnectionStatus(status, message) {
+            const statusElement = document.getElementById('connectionStatus');
+            statusElement.className = `status ${status}`;
+            statusElement.textContent = message;
+        }
+
+        function updateMetrics() {
+            document.getElementById('connectionAttempts').textContent = connectionAttempts;
+            document.getElementById('messagesSent').textContent = messagesSent;
+            document.getElementById('messagesReceived').textContent = messagesReceived;
+        }
+
+        function updateTranscription(text) {
+            const transcriptionElement = document.getElementById('transcriptionText');
+            const currentText = transcriptionElement.textContent;
+            if (currentText === 'Transcription will appear here...') {
+                transcriptionElement.textContent = text;
+            } else {
+                transcriptionElement.textContent = currentText + ' ' + text;
+            }
+            transcriptionElement.scrollTop = transcriptionElement.scrollHeight;
+        }
+
+        // Enhanced audio processing with tab capture
+        async function toggleAudioProcessing() {
+            const button = document.getElementById('audioButton');
+            const statusDiv = document.getElementById('audioStatus');
+
+            if (!isRecording) {
+                try {
+                    // Reset transcription
+                    document.getElementById('transcriptionText').textContent = 'Transcription will appear here...';
+                    
+                    // Connect WebSocket with retry logic
+                    statusDiv.textContent = 'Connecting to server...';
+                    await connectWebSocket();
+
+                    // Request tab audio capture with enhanced options
+                    statusDiv.textContent = 'Requesting tab audio capture...';
+                    console.log('Requesting tab audio capture...');
+                    
+                    const stream = await navigator.mediaDevices.getDisplayMedia({
+                        video: {
+                            displaySurface: 'browser',
+                            logicalSurface: true,
+                            cursor: 'never',
+                            width: { ideal: 1280, max: 1920 },
+                            height: { ideal: 720, max: 1080 },
+                            frameRate: { ideal: 30, max: 60 }
+                        },
+                        audio: {
+                            echoCancellation: true,
+                            noiseSuppression: true,
+                            autoGainControl: true,
+                            sampleRate: { ideal: 48000, min: 16000, max: 48000 },
+                            sampleSize: { ideal: 16, min: 8, max: 16 },
+                            channelCount: { ideal: 2, min: 1, max: 2 }
+                        },
+                        preferCurrentTab: true,
+                        systemAudio: 'include'
+                    });
+
+                    // Verify we got audio tracks
+                    const audioTracks = stream.getAudioTracks();
+                    if (audioTracks.length === 0) {
+                        throw new Error('No audio track available. Please ensure you select "Share audio" when prompted.');
+                    }
+                    
+                    console.log('Tab audio capture successful!');
+                    console.log('Audio track details:', {
+                        label: audioTracks[0].label,
+                        settings: audioTracks[0].getSettings(),
+                        capabilities: audioTracks[0].getCapabilities()
+                    });
+
+                    statusDiv.textContent = `Audio captured: ${audioTracks[0].label}`;
+                    mediaStream = stream;
+
+                    // Start video playback if available
+                    if (player && player.playVideo) {
+                        console.log('Starting video playback...');
+                        player.playVideo();
+                    }
+
+                    // Set up audio processing
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    
+                    // Enhanced AudioWorklet processor
+                    const audioWorkletCode = `
+                        class AudioProcessor extends AudioWorkletProcessor {
+                            constructor() {
+                                super();
+                                this.targetSampleRate = 16000;
+                                this.bufferSize = 4096;
+                                this.buffer = new Float32Array(this.bufferSize);
+                                this.bufferedSamples = 0;
+                                this.downsampleRatio = Math.round(sampleRate / this.targetSampleRate);
+                                this.sampleCounter = 0;
+                            }
+
+                            process(inputs, outputs, parameters) {
+                                const input = inputs[0];
+                                if (input.length > 0) {
+                                    const inputData = input[0];
+                                    
+                                    for (let i = 0; i < inputData.length; i++) {
+                                        if (this.sampleCounter % this.downsampleRatio === 0) {
+                                            this.buffer[this.bufferedSamples] = inputData[i];
+                                            this.bufferedSamples++;
+                                            
+                                            if (this.bufferedSamples >= this.bufferSize) {
+                                                this.port.postMessage({
+                                                    type: 'audio',
+                                                    data: Array.from(this.buffer)
+                                                });
+                                                this.bufferedSamples = 0;
+                                            }
+                                        }
+                                        this.sampleCounter++;
+                                    }
+                                }
+                                return true;
+                            }
+                        }
+                        
+                        registerProcessor('audio-processor', AudioProcessor);
+                    `;
+
+                    const blob = new Blob([audioWorkletCode], { type: 'application/javascript' });
+                    const workletUrl = URL.createObjectURL(blob);
+                    
+                    await audioContext.audioWorklet.addModule(workletUrl);
+                    URL.revokeObjectURL(workletUrl);
+
+                    const source = audioContext.createMediaStreamSource(stream);
+                    processor = new AudioWorkletNode(audioContext, 'audio-processor');
+
+                    processor.port.onmessage = (event) => {
+                        if (event.data.type === 'audio' && ws && ws.readyState === WebSocket.OPEN && isRecording) {
+                            const audioData = new Float32Array(event.data.data);
+                            const arrayBuffer = audioData.buffer.slice(
+                                audioData.byteOffset,
+                                audioData.byteOffset + audioData.byteLength
+                            );
+                            ws.send(arrayBuffer);
+                            messagesSent++;
+                            updateMetrics();
+                            
+                            // Update progress bar
+                            const progress = document.getElementById('audioProgress');
+                            progress.style.width = '100%';
+                            setTimeout(() => progress.style.width = '0%', 100);
+                        }
+                    };
+
+                    source.connect(processor);
+                    processor.connect(audioContext.destination);
+
+                    isRecording = true;
+                    button.textContent = 'Stop Processing';
+                    button.className = 'stop-button';
+                    statusDiv.textContent = 'Processing audio from tab...';
+
+                    // Handle stream ending
+                    stream.getVideoTracks().forEach(track => {
+                        track.onended = () => {
+                            console.log('Screen sharing ended');
+                            if (isRecording) {
+                                stopAudioProcessing();
+                            }
+                        };
+                    });
+
+                } catch (error) {
+                    console.error('Error starting audio processing:', error);
+                    statusDiv.textContent = `Error: ${error.message}`;
+                    document.getElementById('audioResponse').textContent = `Error: ${error.message}`;
+                    document.getElementById('audioResponse').className = 'response error';
+                    
+                    if (error.name === 'NotAllowedError') {
+                        statusDiv.textContent = 'Permission denied. Please allow screen/audio sharing and ensure you select "Share audio".';
+                    } else if (error.name === 'NotSupportedError') {
+                        statusDiv.textContent = 'Screen capture not supported in this browser.';
+                    }
+                    
+                    stopAudioProcessing();
+                }
+            } else {
+                stopAudioProcessing();
+            }
+        }
+
+        function stopAudioProcessing() {
+            isRecording = false;
+            const button = document.getElementById('audioButton');
+            const statusDiv = document.getElementById('audioStatus');
+            
+            button.textContent = 'Start Tab Audio Processing';
+            button.className = '';
+            statusDiv.textContent = 'Stopped';
+            
+            // Stop media stream
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => {
+                    track.stop();
+                    console.log('Stopped track:', track.label);
+                });
+                mediaStream = null;
+            }
+
+            // Clean up audio context
+            if (processor) {
+                processor.disconnect();
+                processor = null;
+            }
+            
+            if (audioContext) {
+                audioContext.close().then(() => {
+                    console.log('Audio context closed');
+                }).catch(error => {
+                    console.error('Error closing audio context:', error);
+                });
+                audioContext = null;
+            }
+
+            // Clean up WebSocket
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                try {
+                    ws.send(JSON.stringify({ type: 'stop' }));
+                    ws.close(1000, 'User stopped recording');
+                } catch (error) {
+                    console.error('Error closing WebSocket:', error);
+                }
+            }
+            
+            stopHeartbeat();
+            if (reconnectTimer) {
+                clearTimeout(reconnectTimer);
+                reconnectTimer = null;
+            }
+
+            // Pause video
+            if (player && player.pauseVideo) {
+                player.pauseVideo();
+            }
+            
+            updateConnectionStatus('disconnected', 'Disconnected');
+        }
+
+        // System health check
+        async function checkHealth() {
+            try {
+                const response = await fetch('/health');
+                const data = await response.json();
+                document.getElementById('healthResponse').textContent = JSON.stringify(data, null, 2);
+                document.getElementById('healthResponse').className = response.ok ? 'response success' : 'response error';
+            } catch (error) {
+                document.getElementById('healthResponse').textContent = `Error: ${error.message}`;
+                document.getElementById('healthResponse').className = 'response error';
+            }
+        }
+
+        // Document upload
+        async function uploadDocument() {
+            const fileInput = document.getElementById('documentFile');
+            const files = fileInput.files;
+            
+            if (files.length === 0) {
+                alert('Please select at least one file');
+                return;
+            }
+
+            const formData = new FormData();
+            for (let i = 0; i < files.length; i++) {
+                formData.append('files', files[i]);
+            }
+
+            try {
+                const response = await fetch('/upload-documents', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                document.getElementById('uploadResponse').textContent = JSON.stringify(data, null, 2);
+                document.getElementById('uploadResponse').className = response.ok ? 'response success' : 'response error';
+            } catch (error) {
+                document.getElementById('uploadResponse').textContent = `Error: ${error.message}`;
+                document.getElementById('uploadResponse').className = 'response error';
+            }
+        }
+
+        // Query processing
+        async function sendQuery() {
+            const query = document.getElementById('queryText').value.trim();
+            if (!query) {
+                alert('Please enter a query');
+                return;
+            }
+
+            try {
+                const response = await fetch('/query', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ query: query })
+                });
+                
+                const data = await response.json();
+                document.getElementById('queryResponse').textContent = JSON.stringify(data, null, 2);
+                document.getElementById('queryResponse').className = response.ok ? 'response success' : 'response error';
+            } catch (error) {
+                document.getElementById('queryResponse').textContent = `Error: ${error.message}`;
+                document.getElementById('queryResponse').className = 'response error';
+            }
+        }
+
+        // Chat history
+        async function getChatHistory() {
+            try {
+                const response = await fetch('/chat-history');
+                const data = await response.json();
+                document.getElementById('historyResponse').textContent = JSON.stringify(data, null, 2);
+                document.getElementById('historyResponse').className = response.ok ? 'response success' : 'response error';
+            } catch (error) {
+                document.getElementById('historyResponse').textContent = `Error: ${error.message}`;
+                document.getElementById('historyResponse').className = 'response error';
+            }
+        }
+
+        async function clearChatHistory() {
+            try {
+                const response = await fetch('/clear-history', {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                document.getElementById('historyResponse').textContent = JSON.stringify(data, null, 2);
+                document.getElementById('historyResponse').className = response.ok ? 'response success' : 'response error';
+            } catch (error) {
+                document.getElementById('historyResponse').textContent = `Error: ${error.message}`;
+                document.getElementById('historyResponse').className = 'response error';
+            }
+        }
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            stopAudioProcessing();
+        });
+
+        // Auto-check system health on load
+        window.addEventListener('load', () => {
+            checkHealth();
+            updateMetrics();
+        });
+    </script>
+</body>
+</html>

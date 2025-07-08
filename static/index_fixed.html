@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Audio RAG Tester</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .section {
+            border: 1px solid #ddd;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+        .video-container {
+            position: relative;
+            width: 100%;
+            padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+            margin-bottom: 20px;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .video-container #player {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        .response {
+            background: #f4f4f4;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 3px;
+            white-space: pre-wrap;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+        .error {
+            color: red;
+            background: #ffe6e6;
+            padding: 10px;
+            border-radius: 3px;
+            margin: 5px 0;
+        }
+        .success {
+            color: green;
+            background: #e6ffe6;
+            padding: 10px;
+            border-radius: 3px;
+            margin: 5px 0;
+        }
+        .status {
+            color: blue;
+            background: #e6f3ff;
+            padding: 10px;
+            border-radius: 3px;
+            margin: 5px 0;
+        }
+        #transcriptionArea {
+            height: 200px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            background: #f9f9f9;
+        }
+        .transcription-item {
+            margin-bottom: 5px;
+            padding: 5px;
+            background: white;
+            border-radius: 3px;
+        }
+        #transcriptionBox {
+            width: 100%;
+            height: 100px;
+            resize: vertical;
+        }
+        .audio-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        .recording-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ccc;
+            transition: background 0.3s;
+        }
+        .recording-indicator.active {
+            background: #ff4444;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <h1>🎤 Audio RAG Agent Tester</h1>
+    
+    <div class="section">
+        <h2>📺 Test Video for Audio Processing</h2>
+        <p>This video will be used to test tab audio capture and transcription.</p>
+        
+        <div class="video-container">
+            <div id="player"></div>
+        </div>
+        
+        <div class="audio-controls">
+            <div class="recording-indicator" id="recordingIndicator"></div>
+            <button id="audioButton" onclick="toggleAudio()">Start Tab Audio Capture</button>
+            <button onclick="clearTranscriptions()">Clear Transcriptions</button>
+        </div>
+        
+        <div id="audioStatus" class="status">Ready to capture tab audio</div>
+        
+        <h3>📝 Live Transcriptions</h3>
+        <div id="transcriptionArea"></div>
+        
+        <h3>🎯 Current Transcription Context</h3>
+        <textarea id="transcriptionBox" placeholder="Latest transcription will appear here..." readonly></textarea>
+    </div>
+
+    <div class="section">
+        <h2>📚 Document Upload</h2>
+        <input type="file" id="documentFile" accept=".txt,.pdf,.docx">
+        <button onclick="uploadDocument()">Upload Document</button>
+        <div id="uploadStatus"></div>
+    </div>
+
+    <div class="section">
+        <h2>❓ Query Interface</h2>
+        <textarea id="queryInput" placeholder="Ask a question about uploaded documents or transcribed audio..." rows="3" style="width: 100%;"></textarea>
+        <br>
+        <button onclick="sendQuery()">Send Query</button>
+        <div id="queryResponse" class="response"></div>
+    </div>
+
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <script>
+        // Global variables
+        let player;
+        let ws = null;
+        let isRecording = false;
+        let audioContext = null;
+        let audioWorkletNode = null;
+        let mediaStream = null;
+        let connectionRetries = 0;
+        const maxRetries = 3;
+
+        // YouTube Player Setup
+        function onYouTubeIframeAPIReady() {
+            player = new YT.Player('player', {
+                height: '100%',
+                width: '100%',
+                videoId: 'dQw4w9WgXcQ', // Default video - can be changed
+                playerVars: {
+                    'autoplay': 0,
+                    'controls': 1,
+                    'rel': 0,
+                    'showinfo': 0,
+                    'fs': 1,
+                    'modestbranding': 1
+                },
+                events: {
+                    'onReady': onPlayerReady,
+                    'onStateChange': onPlayerStateChange
+                }
+            });
+        }
+
+        function onPlayerReady(event) {
+            console.log('YouTube player ready');
+            updateStatus('YouTube player loaded. You can now start tab audio capture.');
+        }
+
+        function onPlayerStateChange(event) {
+            console.log('Player state changed:', event.data);
+        }
+
+        // WebSocket Management with improved error handling and reconnection
+        function createWebSocketConnection() {
+            return new Promise((resolve, reject) => {
+                try {
+                    updateStatus('Connecting to audio processing server...');
+                    ws = new WebSocket(`ws://${window.location.host}/audio`);
+                    
+                    // Increased timeout for WebSocket connection
+                    const connectionTimeout = setTimeout(() => {
+                        if (ws.readyState !== WebSocket.OPEN) {
+                            console.error('WebSocket connection timeout');
+                            ws.close();
+                            reject(new Error('WebSocket connection timeout'));
+                        }
+                    }, 15000); // Increased to 15 seconds
+
+                    ws.onopen = () => {
+                        clearTimeout(connectionTimeout);
+                        console.log('WebSocket connected successfully');
+                        connectionRetries = 0; // Reset retry counter
+                        updateStatus('Connected to server. Ready for audio processing.', 'success');
+                        
+                        // Set up ping/pong to keep connection alive
+                        const pingInterval = setInterval(() => {
+                            if (ws.readyState === WebSocket.OPEN) {
+                                ws.send(JSON.stringify({ type: 'ping' }));
+                            } else {
+                                clearInterval(pingInterval);
+                            }
+                        }, 30000);
+                        
+                        ws.addEventListener('close', () => clearInterval(pingInterval));
+                        resolve(ws);
+                    };
+
+                    ws.onmessage = (event) => {
+                        try {
+                            const data = JSON.parse(event.data);
+                            console.log('Received WebSocket message:', data);
+                            
+                            if (data.type === 'transcription') {
+                                addTranscription(data.text, data.timestamp);
+                                updateStatus('Transcription received and saved as context', 'success');
+                            } else if (data.type === 'error') {
+                                console.error('Server error:', data.message);
+                                updateStatus(`Server error: ${data.message}`, 'error');
+                            } else if (data.type === 'pong') {
+                                console.log('Received pong from server');
+                            }
+                        } catch (error) {
+                            console.error('Error parsing WebSocket message:', error);
+                            updateStatus('Error processing server message', 'error');
+                        }
+                    };
+
+                    ws.onerror = (error) => {
+                        clearTimeout(connectionTimeout);
+                        console.error('WebSocket error:', error);
+                        updateStatus('WebSocket connection error', 'error');
+                        reject(error);
+                    };
+
+                    ws.onclose = (event) => {
+                        clearTimeout(connectionTimeout);
+                        console.log('WebSocket connection closed:', event.code, event.reason);
+                        
+                        if (isRecording && connectionRetries < maxRetries) {
+                            connectionRetries++;
+                            updateStatus(`Connection lost. Attempting to reconnect (${connectionRetries}/${maxRetries})...`, 'error');
+                            setTimeout(() => {
+                                createWebSocketConnection().then(() => {
+                                    updateStatus('Reconnected successfully', 'success');
+                                }).catch(err => {
+                                    console.error('Reconnection failed:', err);
+                                    updateStatus('Reconnection failed. Please try restarting audio capture.', 'error');
+                                });
+                            }, 2000);
+                        } else if (isRecording) {
+                            updateStatus('Connection lost. Please restart audio capture.', 'error');
+                            stopAudioCapture();
+                        }
+                    };
+
+                } catch (error) {
+                    console.error('Error creating WebSocket:', error);
+                    reject(error);
+                }
+            });
+        }
+
+        // Audio Capture Functions with improved tab audio handling
+        async function toggleAudio() {
+            const button = document.getElementById('audioButton');
+            
+            if (!isRecording) {
+                try {
+                    button.disabled = true;
+                    await startAudioCapture();
+                } catch (error) {
+                    console.error('Error starting audio capture:', error);
+                    updateStatus(`Error starting audio processing: ${error.message}`, 'error');
+                    stopAudioCapture();
+                } finally {
+                    button.disabled = false;
+                }
+            } else {
+                stopAudioCapture();
+            }
+        }
+
+        async function startAudioCapture() {
+            updateStatus('Initializing audio capture...');
+            
+            // First establish WebSocket connection
+            await createWebSocketConnection();
+            
+            try {
+                // Request tab audio capture with improved options
+                updateStatus('Requesting tab audio capture permissions...');
+                console.log('Requesting display media with audio...');
+                
+                mediaStream = await navigator.mediaDevices.getDisplayMedia({
+                    video: {
+                        displaySurface: 'browser',  // Prefer browser tab
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 }
+                    },
+                    audio: {
+                        echoCancellation: false,  // Disable for tab audio
+                        noiseSuppression: false,  // Disable for tab audio  
+                        autoGainControl: false,   // Disable for tab audio
+                        sampleRate: { ideal: 48000 },
+                        channelCount: { ideal: 2 }
+                    },
+                    preferCurrentTab: true,
+                    systemAudio: 'include'
+                });
+
+                // Verify we got audio tracks
+                const audioTracks = mediaStream.getAudioTracks();
+                if (audioTracks.length === 0) {
+                    throw new Error('No audio track available. Please select a window/tab with audio content and enable audio sharing.');
+                }
+                
+                console.log('Audio capture successful:', audioTracks[0].label);
+                updateStatus(`Audio capture started: ${audioTracks[0].label}`, 'success');
+
+                // Start the video if available
+                if (player && typeof player.playVideo === 'function') {
+                    console.log('Starting video playback...');
+                    player.playVideo();
+                }
+
+                // Set up audio processing
+                await setupAudioProcessing(mediaStream);
+                
+                // Update UI
+                isRecording = true;
+                document.getElementById('audioButton').textContent = 'Stop Audio Capture';
+                document.getElementById('recordingIndicator').classList.add('active');
+                updateStatus('🎤 Recording tab audio and processing...', 'success');
+
+            } catch (error) {
+                console.error('Error accessing display media:', error);
+                if (error.name === 'NotAllowedError') {
+                    throw new Error('Permission denied. Please allow screen/audio sharing and try again.');
+                } else if (error.name === 'NotFoundError') {
+                    throw new Error('No audio source found. Please select a window/tab with audio content.');
+                } else {
+                    throw new Error(`Audio capture failed: ${error.message}`);
+                }
+            }
+        }
+
+        async function setupAudioProcessing(stream) {
+            try {
+                // Create audio context with the stream's sample rate
+                const audioTrack = stream.getAudioTracks()[0];
+                const trackSettings = audioTrack.getSettings();
+                console.log('Audio track settings:', trackSettings);
+                
+                audioContext = new (window.AudioContext || window.webkitAudioContext)({
+                    sampleRate: trackSettings.sampleRate || 48000
+                });
+
+                // Create AudioWorklet for audio processing
+                const audioWorkletCode = `
+                    class AudioProcessor extends AudioWorkletProcessor {
+                        constructor() {
+                            super();
+                            this.targetSampleRate = 16000;
+                            this.bufferSize = 4096;
+                            this.buffer = new Float32Array(this.bufferSize);
+                            this.bufferedSamples = 0;
+                            this.downsampleRatio = Math.max(1, Math.round(sampleRate / this.targetSampleRate));
+                        }
+                        
+                        process(inputs, outputs, parameters) {
+                            const input = inputs[0];
+                            if (!input || !input[0]) return true;
+                            
+                            const inputData = input[0];
+                            
+                            // Simple downsampling and buffering
+                            for (let i = 0; i < inputData.length; i += this.downsampleRatio) {
+                                if (this.bufferedSamples < this.bufferSize) {
+                                    // Take average of channels if stereo
+                                    let sample = inputData[i];
+                                    if (input[1] && input[1][i] !== undefined) {
+                                        sample = (sample + input[1][i]) / 2;
+                                    }
+                                    this.buffer[this.bufferedSamples++] = sample;
+                                }
+                                
+                                if (this.bufferedSamples >= this.bufferSize) {
+                                    // Convert to Int16Array for Whisper compatibility
+                                    const int16Buffer = new Int16Array(this.bufferSize);
+                                    for (let j = 0; j < this.bufferSize; j++) {
+                                        int16Buffer[j] = Math.max(-32768, Math.min(32767, this.buffer[j] * 32767));
+                                    }
+                                    
+                                    this.port.postMessage({
+                                        type: 'audioData',
+                                        data: int16Buffer,
+                                        sampleRate: this.targetSampleRate,
+                                        samples: this.bufferSize
+                                    });
+                                    
+                                    this.bufferedSamples = 0;
+                                }
+                            }
+                            return true;
+                        }
+                    }
+                    registerProcessor('audio-processor', AudioProcessor);
+                `;
+
+                const blob = new Blob([audioWorkletCode], { type: 'application/javascript' });
+                const workletURL = URL.createObjectURL(blob);
+                
+                await audioContext.audioWorklet.addModule(workletURL);
+                URL.revokeObjectURL(workletURL);
+
+                // Create audio source and processor
+                const source = audioContext.createMediaStreamSource(stream);
+                audioWorkletNode = new AudioWorkletNode(audioContext, 'audio-processor');
+
+                // Handle processed audio data
+                audioWorkletNode.port.onmessage = (event) => {
+                    if (event.data.type === 'audioData' && ws && ws.readyState === WebSocket.OPEN) {
+                        // Convert Int16Array to base64 for transmission
+                        const audioData = event.data.data;
+                        const bytes = new Uint8Array(audioData.buffer);
+                        const base64Data = btoa(String.fromCharCode(...bytes));
+                        
+                        ws.send(JSON.stringify({
+                            type: 'audio_data',
+                            data: base64Data,
+                            format: 'pcm_s16le',
+                            channels: 1,
+                            sample_rate: 16000,
+                            samples: audioData.length
+                        }));
+                    }
+                };
+
+                // Connect audio processing chain
+                source.connect(audioWorkletNode);
+                // Note: We don't connect to destination to avoid feedback
+
+                console.log('Audio processing setup complete');
+
+            } catch (error) {
+                console.error('Error setting up audio processing:', error);
+                throw new Error(`Audio processing setup failed: ${error.message}`);
+            }
+        }
+
+        function stopAudioCapture() {
+            console.log('Stopping audio capture...');
+            
+            // Stop recording
+            isRecording = false;
+            
+            // Clean up audio processing
+            if (audioWorkletNode) {
+                audioWorkletNode.disconnect();
+                audioWorkletNode = null;
+            }
+            
+            if (audioContext && audioContext.state !== 'closed') {
+                audioContext.close();
+                audioContext = null;
+            }
+            
+            // Stop media stream
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => {
+                    track.stop();
+                    console.log('Stopped track:', track.label);
+                });
+                mediaStream = null;
+            }
+            
+            // Close WebSocket
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.close();
+                ws = null;
+            }
+            
+            // Update UI
+            document.getElementById('audioButton').textContent = 'Start Tab Audio Capture';
+            document.getElementById('recordingIndicator').classList.remove('active');
+            updateStatus('Audio capture stopped');
+            
+            console.log('Audio capture cleanup complete');
+        }
+
+        // Utility Functions
+        function updateStatus(message, type = 'status') {
+            const statusDiv = document.getElementById('audioStatus');
+            statusDiv.textContent = message;
+            statusDiv.className = type;
+            console.log(`Status (${type}): ${message}`);
+        }
+
+        function addTranscription(text, timestamp) {
+            const transcriptionArea = document.getElementById('transcriptionArea');
+            const transcriptionBox = document.getElementById('transcriptionBox');
+            
+            // Add to scrolling area
+            const item = document.createElement('div');
+            item.className = 'transcription-item';
+            item.textContent = `[${timestamp || new Date().toLocaleTimeString()}] ${text}`;
+            transcriptionArea.appendChild(item);
+            transcriptionArea.scrollTop = transcriptionArea.scrollHeight;
+            
+            // Update current transcription box
+            transcriptionBox.value = text;
+            
+            console.log('Added transcription:', text);
+        }
+
+        function clearTranscriptions() {
+            document.getElementById('transcriptionArea').innerHTML = '';
+            document.getElementById('transcriptionBox').value = '';
+            updateStatus('Transcriptions cleared');
+        }
+
+        // Document Upload Functions
+        async function uploadDocument() {
+            const fileInput = document.getElementById('documentFile');
+            const statusDiv = document.getElementById('uploadStatus');
+            
+            if (!fileInput.files.length) {
+                statusDiv.innerHTML = '<div class="error">Please select a file to upload.</div>';
+                return;
+            }
+            
+            const file = fileInput.files[0];
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            try {
+                statusDiv.innerHTML = '<div class="status">Uploading document...</div>';
+                
+                const response = await fetch('/documents', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || 'Upload failed');
+                }
+                
+                const result = await response.json();
+                statusDiv.innerHTML = `<div class="success">Document uploaded successfully! ID: ${result.document_id}</div>`;
+                fileInput.value = '';
+                
+            } catch (error) {
+                console.error('Upload error:', error);
+                statusDiv.innerHTML = `<div class="error">Upload failed: ${error.message}</div>`;
+            }
+        }
+
+        // Query Functions
+        async function sendQuery() {
+            const queryInput = document.getElementById('queryInput');
+            const responseDiv = document.getElementById('queryResponse');
+            
+            if (!queryInput.value.trim()) {
+                responseDiv.innerHTML = '<div class="error">Please enter a question.</div>';
+                return;
+            }
+            
+            try {
+                responseDiv.innerHTML = '<div class="status">Processing query...</div>';
+                
+                const response = await fetch('/query', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        text: queryInput.value.trim()
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || 'Query failed');
+                }
+                
+                const result = await response.text();
+                responseDiv.innerHTML = `<div class="success">Response:</div><div class="response">${result}</div>`;
+                
+            } catch (error) {
+                console.error('Query error:', error);
+                responseDiv.innerHTML = `<div class="error">Query failed: ${error.message}</div>`;
+            }
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (event) => {
+            if (event.ctrlKey || event.metaKey) {
+                switch (event.key) {
+                    case 'Enter':
+                        if (event.target.id === 'queryInput') {
+                            event.preventDefault();
+                            sendQuery();
+                        }
+                        break;
+                    case ' ':
+                        if (event.target.tagName !== 'INPUT' && event.target.tagName !== 'TEXTAREA') {
+                            event.preventDefault();
+                            toggleAudio();
+                        }
+                        break;
+                }
+            }
+        });
+
+        // Clean up on page unload
+        window.addEventListener('beforeunload', () => {
+            stopAudioCapture();
+        });
+
+        // Initialize
+        console.log('Audio RAG Tester loaded');
+        updateStatus('Ready. Load a YouTube video and start tab audio capture to begin.');
+    </script>
+</body>
+</html>

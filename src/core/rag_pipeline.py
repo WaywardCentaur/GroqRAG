@@ -243,6 +243,15 @@ class RAGPipeline:
             
             # Prepare context from retrieved chunks
             context_chunks = results['documents'][0]
+            # Filter out None values and ensure all chunks are strings
+            context_chunks = [str(chunk) for chunk in context_chunks if chunk is not None and str(chunk).strip()]
+            
+            if not context_chunks:
+                return {
+                    "answer": "I couldn't find any relevant information to answer your question.",
+                    "sources": []
+                }
+            
             context = "\n\n".join(context_chunks)
             
             # Generate answer using Groq
@@ -291,6 +300,10 @@ class RAGPipeline:
             Generated answer
         """
         try:
+            # Ensure context is a valid string
+            if not context or not isinstance(context, str):
+                context = "No specific context available."
+            
             # Create prompt
             prompt = f"""Based on the following context, please answer the question. If the context doesn't contain enough information to answer the question, please say so.
 
@@ -318,6 +331,10 @@ Answer:"""
                 max_tokens=1000
             )
             
+            # Check if response is valid
+            if not response.choices or not response.choices[0].message.content:
+                return "I encountered an issue generating the answer. Please try again."
+                
             return response.choices[0].message.content.strip()
             
         except Exception as e:

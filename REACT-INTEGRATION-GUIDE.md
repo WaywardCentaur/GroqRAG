@@ -2,6 +2,15 @@
 
 This guide shows how to integrate your Audio RAG Agent with a React frontend application.
 
+## 🚀 Live Deployment
+
+**Your Audio RAG Agent is now live and accessible!**
+
+- **API Base URL**: `http://149.28.123.26:8000`
+- **Web Interface**: http://149.28.123.26:8000/
+- **API Documentation**: http://149.28.123.26:8000/docs
+- **Health Check**: http://149.28.123.26:8000/health
+
 ## 📋 Table of Contents
 
 1. [API Endpoints Overview](#api-endpoints-overview)
