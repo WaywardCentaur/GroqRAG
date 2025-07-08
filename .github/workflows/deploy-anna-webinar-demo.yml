@@ -8,13 +8,28 @@ on:
       - 'anna-webinar-demo/**'
   workflow_dispatch:
 
+# Explicit permissions for GitHub Pages deployment
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  actions: read
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    
+    # Set environment variables at job level
+    env:
+      CI: false
+      GENERATE_SOURCEMAP: false
+      DISABLE_ESLINT_PLUGIN: true
 
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Ensure full history for proper deployment
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -23,41 +38,83 @@ jobs:
           cache: 'npm'
           cache-dependency-path: anna-webinar-demo/package-lock.json
 
-      - name: Clear npm cache
-        working-directory: anna-webinar-demo
-        run: npm cache clean --force
-
-      - name: Check package.json exists
+      - name: Verify directory structure and prerequisites
         run: |
+          echo "=== Directory Structure Verification ==="
+          echo "Current working directory: $(pwd)"
+          echo "Repository structure:"
+          ls -la
+          
+          echo -e "\n=== Anna Webinar Demo Directory ==="
           ls -la anna-webinar-demo/
-          echo "Node version:"
-          node --version
-          echo "NPM version:"
-          npm --version
+          
+          echo -e "\n=== Package Files Check ==="
+          test -f anna-webinar-demo/package.json && echo "✅ package.json found" || (echo "❌ package.json missing" && exit 1)
+          test -f anna-webinar-demo/package-lock.json && echo "✅ package-lock.json found" || (echo "❌ package-lock.json missing" && exit 1)
+          
+          echo -e "\n=== Build Script Verification ==="
+          grep -q '"build"' anna-webinar-demo/package.json && echo "✅ Build script found in package.json" || (echo "❌ Build script missing" && exit 1)
+          
+          echo -e "\n=== Environment Info ==="
+          echo "Node version: $(node --version)"
+          echo "NPM version: $(npm --version)"
+          echo "Working directory: $(pwd)"
 
       - name: Install dependencies
         working-directory: anna-webinar-demo
         run: |
-          echo "Installing dependencies..."
-          npm install --prefer-offline --no-audit
+          echo "=== Installing Dependencies ==="
+          echo "Installing dependencies with npm ci..."
+          npm ci --no-optional --no-audit --progress=false
+          
+          echo -e "\n=== Dependency Installation Verification ==="
+          test -d node_modules && echo "✅ node_modules directory created" || (echo "❌ node_modules missing" && exit 1)
+          echo "Dependencies installed successfully"
 
       - name: Build React app
         working-directory: anna-webinar-demo
         run: |
-          echo "Building React app..."
-          DISABLE_ESLINT_PLUGIN=true npm run build
-        env:
-          CI: false
-          GENERATE_SOURCEMAP: false
-          ESLINT_NO_DEV_ERRORS: true
-          DISABLE_ESLINT_PLUGIN: true
+          echo "=== Building React Application ==="
+          echo "Starting build process..."
+          npm run build
+          
+          echo -e "\n=== Build Success ==="
+          echo "React app build completed successfully"
 
       - name: Verify build output
         run: |
-          echo "Checking build directory..."
+          echo "=== Build Output Verification ==="
+          
+          # Check if build directory exists
+          if [ -d "anna-webinar-demo/build" ]; then
+            echo "✅ Build directory exists"
+          else
+            echo "❌ Build directory missing - build failed"
+            exit 1
+          fi
+          
+          # Check for essential files
+          if [ -f "anna-webinar-demo/build/index.html" ]; then
+            echo "✅ index.html found"
+          else
+            echo "❌ index.html missing - build incomplete"
+            exit 1
+          fi
+          
+          # Show build directory structure
+          echo -e "\n=== Build Directory Contents ==="
           ls -la anna-webinar-demo/build/
-          echo "Build directory contents:"
-          find anna-webinar-demo/build -type f | head -10
+          
+          # Check for static assets
+          if [ -d "anna-webinar-demo/build/static" ]; then
+            echo "✅ Static assets directory found"
+            echo "Static assets:"
+            find anna-webinar-demo/build/static -type f | head -5
+          else
+            echo "⚠️  Static assets directory not found (might be okay)"
+          fi
+          
+          echo -e "\n=== Build Output Ready for Deployment ==="
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
@@ -65,3 +122,18 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./anna-webinar-demo/build
           destination_dir: anna-webinar-demo
+          # Ensure clean deployment
+          force_orphan: true
+          # Add commit info
+          user_name: 'github-actions[bot]'
+          user_email: 'github-actions[bot]@users.noreply.github.com'
+          commit_message: 'Deploy Anna Webinar Demo ${{ github.sha }}'
+
+      - name: Deployment verification
+        run: |
+          echo "=== Deployment Complete ==="
+          echo "✅ Anna Webinar Demo deployed successfully!"
+          echo "🌐 Your app will be available at: https://waywardcentaur.github.io/GroqRAG/anna-webinar-demo/"
+          echo "📝 Note: It may take a few minutes for changes to appear on GitHub Pages"
+          echo "🔧 Repository: ${{ github.repository }}"
+          echo "📊 Commit: ${{ github.sha }}"
