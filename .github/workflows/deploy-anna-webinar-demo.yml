@@ -23,13 +23,25 @@ jobs:
           cache: 'npm'
           cache-dependency-path: anna-webinar-demo/package.json
 
+      - name: Check package.json exists
+        run: |
+          ls -la anna-webinar-demo/
+          cat anna-webinar-demo/package.json
+
       - name: Install dependencies
         working-directory: anna-webinar-demo
-        run: npm ci
+        run: |
+          echo "Installing dependencies..."
+          npm ci --verbose
 
       - name: Build React app
         working-directory: anna-webinar-demo
-        run: npm run build
+        run: |
+          echo "Building React app..."
+          npm run build
+        env:
+          CI: false
+          GENERATE_SOURCEMAP: false
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
